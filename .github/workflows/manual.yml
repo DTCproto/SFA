@@ -72,8 +72,8 @@ jobs:
         run: |
           cd ${{ github.workspace }}/build
           git clone -b ${{ inputs.x_sb_branch }} https://github.com/SagerNet/sing-box.git
-          git reset --hard ${{ inputs.x_sb_commit_id }}
           cd ${{ github.workspace }}/build/sing-box
+          git reset --hard ${{ inputs.x_sb_commit_id }}
           make lib_install
 
       - name: build aar
