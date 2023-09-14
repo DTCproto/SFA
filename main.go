@@ -1,7 +1,13 @@
 package main
 
-import "log"
+import (
+	"fmt"
+	"github.com/google/uuid"
+	"log"
+	"time"
+)
 
 func main() {
-	log.Println("test")
+	log.Println(time.Now())
+	fmt.Println(uuid.NewUUID())
 }
