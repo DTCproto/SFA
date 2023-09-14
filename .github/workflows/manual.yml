@@ -81,7 +81,7 @@ jobs:
           cd ${{ github.workspace }}/build/sing-box
           echo "sb_version=$(CGO_ENABLED=0 go run ./cmd/internal/read_tag)" >> "$GITHUB_ENV"
           CGO_ENABLED=1 gomobile bind -v -androidapi 21 -javapkg=io.nekohasekai -libname=box -tags ${{ inputs.x_sb_build_tags }} -ldflags "-X github.com/sagernet/sing-box/constant.Version=${sb_version} -buildid=" ./experimental/libbox
-          cp libbox.aar ${{ github.workspace }}/sing-box-for-android/app/libs/
+          cp libbox.aar ${{ github.workspace }}/build/sing-box-for-android/app/libs/
 
       - name: build sfa
         run: |
@@ -92,3 +92,17 @@ jobs:
           sed -i '/signingConfigs\.release/d' app/build.gradle
           chmod +x ./gradlew
           ./gradlew assembleRelease
+
+      - name: upload aar
+        uses: actions/upload-artifact@v3
+        with:
+          name: aar
+          path: |
+            ${{ github.workspace }}/build/sing-box/*.aar
+
+      - name: upload dev apk
+        uses: actions/upload-artifact@v3
+        with:
+          name: dev_apks
+          path: |
+            ${{ github.workspace }}/build/sing-box-for-android/app/build/outputs/apk/**/*.apk
