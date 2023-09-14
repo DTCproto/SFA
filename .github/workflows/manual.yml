@@ -5,42 +5,88 @@ name: BUILD_APK_BY_MANUAL
 on:
   workflow_dispatch:
     inputs:
-      x_branch:
+      x_sfa_branch:
+        description: '指定sfa分支'
+        required: true
+        default: 'main'
+        type: choice
+        options:
+          - 'main'
+      x_sb_branch:
         description: '指定sing-box分支'
         required: true
         default: 'main'
         type: choice
         options:
-        - 'main'
-      x_commit_id:
+          - 'main'
+          - 'dev'
+          - 'dev-next'
+          - 'main-next'
+      x_sb_commit_id:
         description: '指定sing-box使用commit id版本'
         required: true
         default: 'HEAD~0'
+        type: string
+      x_sb_build_tags:
+        description: '指定sing-box包含的模块'
+        required: true
+        default: 'with_quic,with_grpc,with_wireguard,with_gvisor,with_utls,with_ech,with_clash_api,with_proxyprovider'
         type: string
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Java
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '20'
-    - name: java version
-      run: |
-        java --version
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.21'
-    - name: Install gomobile
-      run: |
-        go install golang.org/x/mobile/cmd/gomobile@latest
-        echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-    
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v2
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '20'
+      - name: java version
+        run: |
+          java --version
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: git clone sfa
+        run: |
+          mkdir ${{ github.workspace }}/build
+          cd ${{ github.workspace }}/build
+          git clone --depth=1 -b ${{ inputs.x_sfa_branch }} https://github.com/SagerNet/sing-box-for-android.git
+          cd ${{ github.workspace }}/build/sing-box-for-android
+          mkdir -p app/libs/
+
+      - name: git clone sb
+        run: |
+          cd ${{ github.workspace }}/build
+          git clone -b ${{ inputs.x_sb_branch }} https://github.com/SagerNet/sing-box.git
+          git reset --hard ${{ inputs.x_sb_commit_id }}
+
+      - name: build aar
+        run: |
+          cd ${{ github.workspace }}/build/sing-box
+          echo "sb_version=$(CGO_ENABLED=0 go run ./cmd/internal/read_tag)" >> "$GITHUB_ENV"
+          CGO_ENABLED=1 gomobile bind -v -androidapi 21 -javapkg=io.nekohasekai -libname=box -tags ${{ inputs.x_sb_build_tags }} -ldflags "-X github.com/sagernet/sing-box/constant.Version=${sb_version} -buildid=" ./experimental/libbox
+          cp libbox.aar ${{ github.workspace }}/sing-box-for-android/app/libs/
+
+      - name: build sfa
+        run: |
+          cd ${{ github.workspace }}/build/sing-box-for-android
+          echo "VERSION_NAME=${sb_version}" > local.properties
+          echo "VERSION_CODE=$(date +%Y%m%d%H)" >> local.properties
+          cat local.properties
+          sed -i '/signingConfigs\.release/d' app/build.gradle
+          chmod +x ./gradlew
+          ./gradlew assembleRelease
